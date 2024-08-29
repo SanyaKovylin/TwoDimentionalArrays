@@ -6,42 +6,44 @@
 #include "MatOp.h"
 
 
+// for i in range(10000000):
+//      A + B = C
+int AddMatrix (struct Matrix mat1, struct Matrix mat2, struct Matrix *matout){
 
-struct Matrix AddMatrix(struct Matrix mat1, struct Matrix mat2){
+    assert (mat1.mat != NULL);
+    assert (mat2.mat != NULL);
 
-    assert(mat1.mat != NULL);
-    assert(mat2.mat != NULL);
-
-    assert(mat1.rows == mat2.rows);
-    assert(mat1.cols == mat2.cols);
-
-    struct Matrix matout = {MatInit(mat1.rows, mat1.cols), mat1.rows, mat1.cols};
+    assert (mat1.rows == mat2.rows);
+    assert (mat1.cols == mat2.cols);
 
     for (size_t y = 0; y < mat1.rows; y++){
         for (size_t x = 0; x < mat1.cols; x++){
-            matout.mat[y][x] = mat1.mat[y][x] + mat2.mat[y][x];
+            matout->mat[y][x] = mat1.mat[y][x] + mat2.mat[y][x];
         }
     }
-    return matout;
+    return 1;
 }
 
-TypeOfMassive **MatInit(size_t Rows, size_t Cols){
+struct Matrix MatInit(size_t Rows, size_t Cols){
 
-    TypeOfMassive ** Mat = (TypeOfMassive**) calloc (Rows, sizeof(TypeOfMassive*));
+    struct Matrix out = {
+        (TypeOfMassive**) calloc (Rows, sizeof(TypeOfMassive*)),
+        Rows,
+        Cols
+    };
+
     for (size_t i = 0; i < Rows; i++){
-        Mat[i] = (TypeOfMassive*) calloc (Cols, sizeof(TypeOfMassive));
+        out.mat[i] = (TypeOfMassive*) calloc (Cols, sizeof(TypeOfMassive));
     }
-    return Mat;
+    return out;
 }
 
-struct Matrix MulMatrix(struct Matrix mat1, struct Matrix mat2){
+int MulMatrix(struct Matrix mat1, struct Matrix mat2, struct Matrix *matout){
 
-    assert(mat1.mat != NULL);
-    assert(mat2.mat != NULL);
+    assert (mat1.mat != NULL);
+    assert (mat2.mat != NULL);
 
-    assert(mat1.cols == mat2.rows);
-
-    struct Matrix matout = {MatInit(mat1.rows, mat2.cols), mat1.rows, mat2.cols};
+    assert (mat1.cols == mat2.rows);
 
     for (size_t y = 0; y < mat1.rows; y++){
         for (size_t x = 0; x < mat2.cols; x++){
@@ -49,44 +51,65 @@ struct Matrix MulMatrix(struct Matrix mat1, struct Matrix mat2){
             for (size_t i = 0; i < mat1.cols; i++){
                 cell += mat1.mat[y][i] * mat2.mat[i][x];
             }
-            matout.mat[y][x] = cell;
+            matout->mat[y][x] = cell;
         }
     }
-    return matout;
+    return 1;
 }
 
-TypeOfMassive DetByLaplas(struct Matrix mat){
+TypeOfMassive ComputeDetByLaplas (struct Matrix mat){
 
-    assert(mat.cols = mat.rows);
+    struct Matrix *Memory = (struct Matrix*) calloc (mat.cols - 1, sizeof(mat));
 
-    if (mat.cols == 1)
-        return mat.mat[0][0];
-    else{
+    for (size_t i = 1; i < mat.cols; i++){
+        Memory[i - 1] = MatInit (i, i);
+    }
+
+    // for (size_t i = 0; i < mat.cols - 1; i++){
+    //     printf("%llu\n", Memory[i].cols);
+    // }
+    return DetByLaplas(&mat, Memory);
+    //return 1.111111111;
+}
+
+TypeOfMassive DetByLaplas (struct Matrix *mat, struct Matrix Memory[]){
+    // cringe
+    assert (mat->cols == mat->rows);
+    assert (mat->mat != NULL);
+
+    //Print2dimMassive(*mat);
+    if (mat->cols == 1)
+        return mat->mat[0][0];
+    else {
         TypeOfMassive partdt = 0;
-        size_t n = mat.cols;
+        size_t n = mat->cols;
         for (size_t i = 0; i < n; i++){
+            //Print2dimMassive(*mat);
             int sign = (i % 2 == 0) ? 1 : -1;
-            partdt += sign * mat.mat[0][i] * DetByLaplas(CutMatrix(mat, i));
+            //printf("%llu %llu\n", (Memory[(mat->cols) - 2]).cols, mat->cols);
+            partdt += sign * mat->mat[0][i] * DetByLaplas (CutMatrix (*mat, i, &Memory[mat->cols - 2]), Memory);
         }
+
+
         return partdt;
     }
 }
 
-struct Matrix CutMatrix(struct Matrix mat, size_t col){
+struct Matrix *CutMatrix (struct Matrix mat, size_t col, struct Matrix *cell){
 
-    assert(mat.cols == mat.rows);
-    assert(mat.cols > 1);
-    assert(col < mat.cols);
-
-    struct Matrix outmat = {MatInit(mat.cols - 1, mat.cols -1), mat.cols - 1, mat.cols - 1};
-
-    for (size_t y = 1; y < mat.cols; y++){
-        for (size_t x = 0; x < mat.cols - 1; x++){
+    assert (mat.cols == mat.rows);
+    assert (mat.cols > 1);
+    assert (col < mat.cols);
+    assert (cell != 0);
+    //printf("%llu\n", cell->cols);
+    for (size_t y = 1; y < mat.cols; y++) {
+        for (size_t x = 0; x < mat.cols - 1; x++) {
 
             int IsSkipped = (x >= col);
-            outmat.mat[y - 1][x] = mat.mat[y][x + IsSkipped];
-            // printf("%lld %lld\n", y, x);
+            cell->mat[y - 1][x] = mat.mat[y][x + IsSkipped];
+            //printf("%lld %lld\n", y, x);
         }
     }
-    return outmat;
+    //Print2dimMassive(*cell);
+    return cell;
 }

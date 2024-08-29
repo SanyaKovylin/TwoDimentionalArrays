@@ -3,34 +3,52 @@
 #include <ctype.h>
 #include <assert.h>
 #include <string.h>
+#include <sys/time.h>
 #include "MatOp.h"
 
 struct Matrix Get2dimFromFile (const char *file);
-int *Get1dimFromFile (size_t *NumOfEls, const char *file);
-int CompareDoubles(double Value1, double Value2);
-void PrintMassiveAsSteps (TypeOfMassive *massive, size_t size);
+struct matrix Get1dimFromFile (const char *file);
+
+void PrintMassiveAsSteps (struct matrix *mat, size_t size);
+
+struct JaggedArr GetJagged (void);
+void PrintJagged(struct JaggedArr mat);
 
 
 int main(void){
 
-    struct Matrix Mass = Get2dimFromFile("Build/Input.txt");
+    struct Matrix Mass = Get2dimFromFile ("Source/Input.txt");
 
-    Print2dimMassive(Mass);
+    //printf("%d %d", Mass.cols, Mass.rows);
+    Print2dimMassive (Mass);
+
 /*
     size_t Mass1Els = 0;
     int *Mass1 = Get1dimFromFile(&Mass1Els, "Build/Input.txt");
 
     PrintMassiveAsSteps(Mass1, Mass1Els);
 */
-    struct Matrix Arr1 = Get2dimFromFile("Build/Input.txt");
+    struct Matrix Arr1 = Get2dimFromFile ("Source/Input.txt");
+    struct Matrix E = MatInit (2ll,2ll);
 
-    struct Matrix ArrSum = MulMatrix(Mass, Arr1);
+    //Print2dimMassive(*CutMatrix(Arr1, 1ull, &E));
+    struct timeval stop, start;
+    gettimeofday (&start, NULL);
+    printf (Form"\n", DetByGauss (Mass));
+    gettimeofday (&stop, NULL);
+    printf ("took %lu us\n", (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec);
 
-    //Print2dimMassive(CutMatrix(Arr1, 0ull));
-    printf(Form, DetByLaplas(Mass));
+    struct timeval stop1, start1;
+    gettimeofday (&start1, NULL);
+    printf(Form"\n", ComputeDetByLaplas (Mass));
+    gettimeofday (&stop1, NULL);
+    printf ("took %lu us\n", (stop1.tv_sec - start1.tv_sec) * 1000000 + stop1.tv_usec - start1.tv_usec);
 
+    struct JaggedArr Arr2 = GetJagged ();
+    PrintJagged(Arr2);
     return 0;
 }
+
 
 
 struct Matrix Get2dimFromFile (const char *file){
@@ -41,12 +59,7 @@ struct Matrix Get2dimFromFile (const char *file){
     size_t NumOfCols = 0;
 
     FILE *fp;
-    // 1 2 3
-    // 4 5 6
-    // 7 8 9
 
-    // 1 2 3 4 5 6 7 8 9
-    // 2 3 4 5 6 7 8 9 0
     fp = fopen(file, "r");
 
     assert(fp != NULL);
@@ -68,17 +81,7 @@ struct Matrix Get2dimFromFile (const char *file){
     NumOfLines++;
 
     rewind (fp);
-    struct Matrix mat = {
-
-        (TypeOfMassive**) calloc (NumOfLines, sizeof(TypeOfMassive*)),
-        NumOfLines,
-        NumOfCols
-    };
-
-
-    for (size_t i = 0; i < mat.rows; i++){
-        mat.mat[i] = (TypeOfMassive*) calloc (NumOfCols, sizeof(TypeOfMassive));
-    }
+    struct Matrix mat = MatInit(NumOfLines, NumOfCols);
 
     for (size_t y = 0; y < mat.rows; y++){
         for (size_t x = 0; x < mat.cols; x++){
@@ -89,35 +92,53 @@ struct Matrix Get2dimFromFile (const char *file){
     return mat;
 }
 
-int *Get1dimFromFile (size_t *NumOfEls, const char *file){
+struct matrix Get1dimFromFile (const char *file){
 
-    assert(NumOfEls != NULL);
     assert(file != NULL);
 
-    *NumOfEls = 0;
+    size_t NumOfLines = 0;
+    size_t NumOfCols = 0;
 
     FILE *fp;
+
     fp = fopen(file, "r");
 
     assert(fp != NULL);
 
     int c = 0;
-    while ((c = getc(fp)) != EOF){
+
+    while ((c = getc(fp)) != '\n'){
         if (isspace(c)){
-            (*NumOfEls)++;
+            NumOfCols++;
         }
     }
+    NumOfCols++;
+
+    while ((c = getc(fp)) != EOF){
+        if (c == '\n'){
+            NumOfLines++;
+        }
+    }
+    NumOfLines++;
+
+
 
     rewind (fp);
 
-    TypeOfMassive *mas = (TypeOfMassive*) calloc (*NumOfEls, sizeof(TypeOfMassive));
+    struct matrix out = {
+        (TypeOfMassive*) calloc (NumOfCols * NumOfLines, sizeof(TypeOfMassive)),
+        NumOfLines,
+        NumOfCols,
+        NumOfCols*NumOfLines
+    };
+    for (size_t x = 0; x < out.size; x++){
 
-    for (size_t x = 0; x < *NumOfEls; x++){
-
-        fscanf (fp, Form, &mas[x]);
+        fscanf (fp, Form, &out.mat[x]);
     }
-    return mas;
+    return out;
 }
+
+
 
 void Print2dimMassive (struct Matrix mat){
 
@@ -126,18 +147,19 @@ void Print2dimMassive (struct Matrix mat){
     for (size_t y = 0; y < mat.rows; y++){
         for (size_t x = 0; x < mat.cols; x++){
 
-            printf(Form "  ", mat.mat[y][x]);
+            printf(Form " ", mat.mat[y][x]);
         }
-        printf("\n \n");
+        printf("\n");
     }
+    printf("\n");
 }
 
 
-void PrintMassiveAsSteps (TypeOfMassive *massive, size_t size){
+void PrintMassiveAsSteps (struct matrix *mat, size_t size){
 
-    assert(massive != NULL);
+    assert(mat != NULL);
 
-    double disc = sqrt(1 + 8*size);
+    double disc = sqrt(1 + 8*(mat->size));
 
     bool extrastep = !CompareDoubles(disc, floor(disc));
 
@@ -146,14 +168,14 @@ void PrintMassiveAsSteps (TypeOfMassive *massive, size_t size){
     size_t x = 1;
     for (;x <= steps; x++){
         for (size_t y = 0; y < x; y++){
-            printf(Form "  ", massive[x * (x - 1) / 2 + y]);
+            printf(Form "  ", mat->mat[x * (x - 1) / 2 + y]);
         }
         printf("\n \n");
     }
 
     if (extrastep){
         for (size_t i = 0; (x * (x - 1) / 2 + i) < size; i++){
-            printf(Form "  ", massive[x * (x - 1) / 2 + i]);
+            printf(Form "  ", mat->mat[x * (x - 1) / 2 + i]);
         }
     }
 }
@@ -161,10 +183,63 @@ void PrintMassiveAsSteps (TypeOfMassive *massive, size_t size){
 
 const double EPS = 0.00001;
 
-int CompareDoubles(double Value1, double Value2){
+int CompareDoubles (double Value1, double Value2){
 
     assert (isfinite (Value1));
     assert (isfinite (Value2));
 
     return EPS > fabs (Value1 - Value2);
+}
+
+int IsZero (double Value){
+
+    assert (isfinite(Value));
+
+    return EPS > fabs (Value);
+}
+
+struct JaggedArr GetJagged (void){
+
+    size_t numlines = 0;
+    printf ("Please, enter the number of lines\n");
+    scanf ("%llu", &numlines);
+
+    struct JaggedArr out = {
+
+        (TypeOfMassive**) calloc (numlines, sizeof (TypeOfMassive*)),
+        numlines,
+        (size_t*) calloc (numlines, sizeof (size_t))
+    };
+
+    for (size_t i = 0; i < numlines; i++) {
+
+        printf("Please, enter the length of the next line\n");
+        size_t linelen = 0;
+        scanf ("%llu", &linelen);
+
+        out.lines[i] = linelen;
+        out.mat[i] = (TypeOfMassive*) calloc (linelen, sizeof (TypeOfMassive));
+
+        printf ("Please, enter the line\n");
+        for (size_t j = 0; j < linelen; j++) {
+
+            scanf (Form, &out.mat[i][j]);
+        }
+    }
+    return out;
+}
+
+
+void PrintJagged(struct JaggedArr mat){
+
+    assert(mat.mat != NULL);
+
+    for (size_t y = 0; y < mat.rows; y++) {
+        for (size_t x = 0; x < mat.lines[y]; x++) {
+
+            printf(Form " ", mat.mat[y][x]);
+        }
+        printf("\n");
+    }
+    printf("\n");
 }
